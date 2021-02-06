@@ -71,4 +71,6 @@ node_to_schema = {
     "urn:oasis:names:tc:SAML:2.0:protocol:ManageNameIDResponse": schema_saml_protocol,
     "urn:oasis:names:tc:SAML:2.0:protocol:LogoutResponse": schema_saml_protocol,
     "urn:oasis:names:tc:SAML:2.0:protocol:NameIDMappingResponse": schema_saml_protocol,
+    # Attribute Query
+    'urn:oasis:names:tc:SAML:2.0:protocol:AttributeQuery': schema_saml_assertion,
 }

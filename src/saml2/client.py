@@ -564,6 +564,7 @@ class Saml2Client(Base):
                 digest_alg=digest_alg,
                 nsprefix=nsprefix,
             )
+            query = type('aq', (object,), {'id':query[0], 'xml': query[1]})
             self.state[query.id] = {
                 "entity_id": entityid,
                 "operation": "AttributeQuery",
@@ -573,7 +574,7 @@ class Saml2Client(Base):
             relay_state = self._relay_state(query.id)
             return self.apply_binding(
                 binding,
-                str(query),
+                query.xml,
                 destination,
                 relay_state,
                 sign=False,
