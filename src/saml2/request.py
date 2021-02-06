@@ -87,7 +87,7 @@ class Request(object):
                     invalid=self.message.version, valid=valid_version
                 )
             )
-
+        
         if self.message.destination and self.receiver_addrs and \
                 self.message.destination not in self.receiver_addrs:
             logger.error("%s not in %s", self.message.destination, self.receiver_addrs)
