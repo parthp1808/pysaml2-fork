@@ -564,6 +564,7 @@ class Saml2Client(Base):
                 digest_alg=digest_alg,
                 nsprefix=nsprefix,
             )
+            query = dict([query])
             self.state[query.id] = {
                 "entity_id": entityid,
                 "operation": "AttributeQuery",
