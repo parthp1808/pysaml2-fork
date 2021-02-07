@@ -1468,7 +1468,7 @@ class SecurityContext(object):
 
         if not certs:
             raise MissingKey(_issuer)
-
+        
         # validate XML with the appropriate schema
         try:
             _schema = node_to_schema[node_name]
@@ -1480,7 +1480,7 @@ class SecurityContext(object):
                 "document": decoded_xml,
             }
             raise SignatureError(error_context) from e
-
+        
         try:
             _schema.validate(str(item))
         except XMLSchemaError as e:

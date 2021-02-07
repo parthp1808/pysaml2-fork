@@ -343,6 +343,14 @@ class ExtensionContainer(object):
     def _convert_element_attribute_to_member(self, attribute, value):
         self.extension_attributes[attribute] = value
 
+        from saml2.saml import XS_NAMESPACE
+        from saml2.saml import XSI_TYPE
+
+        if attribute == XSI_TYPE and value.startswith('xs:'):
+            self.extension_attributes['xmlns:xs'] = XS_NAMESPACE
+        elif attribute == XSI_TYPE and value.startswith('xsd:'):
+            self.extension_attributes['xmlns:xsd'] = XS_NAMESPACE
+
     # One method to create an ElementTree from an object
     def _add_members_to_element_tree(self, tree):
         for child in self.extension_elements:
