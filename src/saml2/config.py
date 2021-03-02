@@ -5,6 +5,8 @@ import logging.handlers
 import os
 import re
 import sys
+
+from jinja2 import Environment, PackageLoader, select_autoescape
 from logging.config import dictConfig as configure_logging_by_dict
 from warnings import warn as _warn
 
@@ -121,6 +123,8 @@ AA_IDP_ARGS = [
     "domain",
     "name_qualifier",
     "edu_person_targeted_id",
+    "data_encryption_algorithm",
+    "key_encryption_algorithm"
 ]
 
 PDP_ARGS = ["endpoints", "name_form", "name_id_format"]
@@ -229,6 +233,8 @@ class Config(object):
         self.delete_tmpfiles = True
         self.signing_algorithm = None
         self.digest_algorithm = None
+        self.data_encryption_algorithm = None
+        self.key_encryption_algorithm = None
 
     def setattr(self, context, attr, val):
         if context == "":

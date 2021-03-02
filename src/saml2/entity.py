@@ -77,7 +77,7 @@ from saml2.pack import http_form_post_message
 from saml2.xmldsig import DefaultSignature
 from saml2.xmldsig import SIG_ALLOWED_ALG
 from saml2.xmldsig import DIGEST_ALLOWED_ALG
-
+from saml2.sigver import DEFAULT_DATA_ENC_ALG, DEFAULT_KEY_ENC_ALG
 
 logger = logging.getLogger(__name__)
 
@@ -152,7 +152,16 @@ class Entity(HTTPBase):
             self.config.getattr('digest_algorithm')
             or def_sig.get_digest_alg()
         )
-
+        
+        self.data_encryption_algorithm = (
+            self.config.getattr('data_encryption_algorithm')
+            or DEFAULT_DATA_ENC_ALG
+        )
+        self.key_encryption_algorithm = (
+            self.config.getattr('key_encryption_algorithm')
+            or DEFAULT_KEY_ENC_ALG
+        )
+        
         sign_config_per_entity_type = {
             'sp': self.config.getattr("authn_requests_signed", "sp"),
             'idp': self.config.getattr("sign_response", "idp"),
@@ -658,12 +667,14 @@ class Entity(HTTPBase):
                                 delete_tmpfiles=self.config.delete_tmpfiles)
 
                 # it would be possibile to handle many other args here ...
-                pre_enc_part_dict = dict()
+                pre_enc_part_dict = {
+                        'msg_enc' : self.data_encryption_algorithm,
+                        'key_enc' : self.key_encryption_algorithm
+                }
                 if encrypt_cert:
                     pre_enc_part_dict['encrypt_cert'] = unwrapped_cert
                 pre_enc_part = pre_encryption_part(**pre_enc_part_dict)
                 # end pre_enc_part
-
 
                 response = self.sec.encrypt_assertion(response, tmp.name,
                                                       pre_enc_part,

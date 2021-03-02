@@ -66,6 +66,10 @@ SIG = '{{{ns}#}}{attribute}'.format(ns=ds.NAMESPACE, attribute='Signature')
 TRIPLE_DES_CBC = 'http://www.w3.org/2001/04/xmlenc#tripledes-cbc'
 RSA_OAEP_MGF1P = "http://www.w3.org/2001/04/xmlenc#rsa-oaep-mgf1p"
 
+DEFAULT_DATA_ENC_ALG = TRIPLE_DES_CBC
+DEFAULT_KEY_ENC_ALG = RSA_OAEP_MGF1P
+
+
 class SigverError(SAMLError):
     pass
 
@@ -743,9 +747,14 @@ class CryptoBackendXmlSec1(CryptoBackend):
 
         if xpath:
             com_list.extend(['--node-xpath', xpath])
-
+        
+        
+        tmp_template = make_temp(text, decode=False, delete_tmpfiles=self.delete_tmpfiles)
+        with open(template).read() as template_str:
+            
+            
         try:
-            (_stdout, _stderr, output) = self._run_xmlsec(com_list, [template])
+            (_stdout, _stderr, output) = self._run_xmlsec(com_list, [tmp_template])
         except XmlsecError as e:
             six.raise_from(EncryptError(com_list), e)
 
