@@ -840,7 +840,7 @@ class CryptoBackendXmlSec1(CryptoBackend):
             '--privkey-pem', key_file,
             '--id-attr:ID', node_name,
         ]
-
+        
         if node_id:
             com_list.extend(['--node-id', node_id])
 
@@ -960,7 +960,6 @@ class CryptoBackendXMLSecurity(CryptoBackend):
         """
         import xmlsec
         import lxml.etree
-
         xml = xmlsec.parse_xml(statement)
         signed = xmlsec.sign(xml, key_file)
         signed_str = lxml.etree.tostring(signed, xml_declaration=False, encoding="UTF-8")
