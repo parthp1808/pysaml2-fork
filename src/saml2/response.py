@@ -401,6 +401,15 @@ class StatusResponse(object):
                 return False
         return True
 
+    def assertion_ok(self):
+        """ Check assetions attributes, additional checks may be implemented """
+        valid = True
+        if hasattr(self.response, 'assertion'):
+            for ass in self.response.assertion:
+                if ass.version and ass.version != '2.0':
+                    valid = False
+                    break
+        return valid
 
     def _verify(self):
         if self.request_id and self.in_response_to and \
@@ -431,7 +440,8 @@ class StatusResponse(object):
                     (
                         self.issue_instant_ok(),
                         self.issuer_ok(),
-                        self.status_ok()
+                        self.status_ok(),
+                        self.assertion_ok()
                     )
                 )
         return valid
