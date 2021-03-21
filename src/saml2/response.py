@@ -396,11 +396,9 @@ class StatusResponse(object):
 
     def issuer_ok(self):
         """ Check if the issuer have a valid Format, additional check may be implemented"""
-        if (
-                self.response.issuer and
-                self.response.issuer.format != saml.NAMEID_FORMAT_ENTITY
-            ):
-            return False
+        if self.response.issuer and  self.response.issuer.format:
+            if self.response.issuer.format != saml.NAMEID_FORMAT_ENTITY:
+                return False
         return True
 
 
