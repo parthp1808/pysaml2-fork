@@ -67,7 +67,7 @@ def test_pre_enc_with_named_key():
     expected = TMPL_NO_HEADER.format(
         ed_id=tmpl.id,
         ek_id=tmpl.key_info.encrypted_key.id,
-        key_info='<ns1:KeyInfo><ns1:KeyName>my-rsa-key</ns1:KeyName></ns1:KeyInfo>'
+        key_info='<ds:KeyInfo><ds:KeyName>my-rsa-key</ds:KeyName></ds:KeyInfo>'
     )
     assert str(tmpl) == expected
 
