@@ -1735,7 +1735,7 @@ class TestClient:
         _dic = unpack_form(info["data"])
         res = self.server.parse_logout_request(_dic["SAMLRequest"],
                                                BINDING_HTTP_POST)
-        assert b'<ns0:SessionIndex>_foo</ns0:SessionIndex>' in res.xmlstr
+        assert b'<samlp:SessionIndex>_foo</samlp:SessionIndex>' in res.xmlstr
 
     def test_do_logout_redirect_no_cache(self):
         conf = config.SPConfig()
@@ -1789,7 +1789,7 @@ class TestClient:
         _dic = unpack_form(info["data"])
         res = self.server.parse_logout_request(_dic["SAMLRequest"],
                                                BINDING_HTTP_POST)
-        assert b'<ns0:SessionIndex>_foo</ns0:SessionIndex>' in res.xmlstr
+        assert b'<samlp:SessionIndex>_foo</samlp:SessionIndex>' in res.xmlstr
 
     def test_signature_wants(self):
 
@@ -3340,7 +3340,7 @@ class TestClientNonAsciiAva:
         _dic = unpack_form(info["data"])
         res = self.server.parse_logout_request(_dic["SAMLRequest"],
                                                BINDING_HTTP_POST)
-        assert b'<ns0:SessionIndex>_foo</ns0:SessionIndex>' in res.xmlstr
+        assert b'<samlp:SessionIndex>_foo</samlp:SessionIndex>' in res.xmlstr
 
     def test_do_logout_session_expired(self):
         # information about the user from an IdP
@@ -3370,7 +3370,7 @@ class TestClientNonAsciiAva:
         _dic = unpack_form(info["data"])
         res = self.server.parse_logout_request(_dic["SAMLRequest"],
                                                BINDING_HTTP_POST)
-        assert b'<ns0:SessionIndex>_foo</ns0:SessionIndex>' in res.xmlstr
+        assert b'<samlp:SessionIndex>_foo</samlp:SessionIndex>' in res.xmlstr
 
 # Below can only be done with dummy Server
 IDP = "urn:mace:example.com:saml:roland:idp"
