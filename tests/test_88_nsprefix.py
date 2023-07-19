@@ -13,12 +13,14 @@ def test_nsprefix():
     status_message = samlp.StatusMessage()
     status_message.text = "OK"
 
-    txt = f"{status_message}"
-
-    assert "ns0:StatusMessage" in txt
+                                           
+    status_message.register_prefix(
+        nspair={"samla": saml.NAMESPACE, "samla": samlp.NAMESPACE}
+    )
+    txt = "%s" % status_message
+    assert "samla:StatusMessage" in txt
 
     status_message.register_prefix({"saml2": saml.NAMESPACE, "saml2p": samlp.NAMESPACE})
-
     txt = f"{status_message}"
 
     assert "saml2p:StatusMessage" in txt
