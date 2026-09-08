@@ -1,5 +1,9 @@
 # Changelog
 
+## 7.5.4-1 (2026-03-17)
+
+- Update python version to `>=3.9.2` to leverage newer language feature and maintain support for dependencies
+- deps: update dependencies `cryptography@45.0.7` and `pyopenssl@^25.3.0`
 
 ## v7.5.4 (2025-10-07)
 
