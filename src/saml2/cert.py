@@ -1,15 +1,20 @@
 __author__ = "haho0032"
 
 import base64
+from datetime import datetime
+from datetime import timedelta
+from datetime import timezone
 from os import remove
 from os.path import join
-from datetime import datetime
-from datetime import timezone
+import uuid
 
-from OpenSSL import crypto
+from cryptography import x509
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ec as _ec
 from cryptography.hazmat.primitives.asymmetric import padding as _padding
 from cryptography.hazmat.primitives.asymmetric import rsa as _rsa
+from cryptography.x509.oid import NameOID
 import dateutil.parser
 
 import saml2.cryptography.pki
@@ -25,6 +30,47 @@ class CertificateError(Exception):
 
 class PayloadError(Exception):
     pass
+
+
+_HASH_ALGORITHMS = {
+    "sha1": hashes.SHA1,
+    "sha224": hashes.SHA224,
+    "sha256": hashes.SHA256,
+    "sha384": hashes.SHA384,
+    "sha512": hashes.SHA512,
+    "md5": hashes.MD5,
+}
+
+
+def _get_hash_algorithm(hash_alg):
+    if hash_alg is None:
+        return hashes.SHA256()
+    if isinstance(hash_alg, hashes.HashAlgorithm):
+        return hash_alg
+    alg_name = str(hash_alg).lower()
+    hash_class = _HASH_ALGORITHMS.get(alg_name, hashes.SHA256)
+    return hash_class()
+
+
+def _to_serial_number(sn):
+    if isinstance(sn, int):
+        val = sn
+    else:
+        try:
+            val = int(sn)
+        except (ValueError, TypeError):
+            try:
+                val = uuid.UUID(str(sn)).int
+            except (ValueError, TypeError):
+                try:
+                    val = int.from_bytes(str(sn).encode("utf-8"), "big")
+                except Exception:
+                    val = 1
+    if val <= 0:
+        val = abs(val) or 1
+    if val >= (1 << 159):
+        val = val % (1 << 159) or 1
+    return val
 
 
 class OpenSSLWrapper:
@@ -133,45 +179,64 @@ class OpenSSLWrapper:
             c_f = join(cert_dir, cert_file)
             k_f = join(cert_dir, key_file)
 
-        # create a key pair
-        k = crypto.PKey()
-        k.generate_key(crypto.TYPE_RSA, key_length)
-
-        # create a self-signed cert
-        cert = crypto.X509()
-
-        if request:
-            cert = crypto.X509Req()
-
         if len(cert_info["country_code"]) != 2:
             raise WrongInput("Country code must be two letters!")
-        cert.get_subject().C = cert_info["country_code"]
-        cert.get_subject().ST = cert_info["state"]
-        cert.get_subject().L = cert_info["city"]
-        cert.get_subject().O = cert_info["organization"]  # noqa: E741
-        cert.get_subject().OU = cert_info["organization_unit"]
-        cert.get_subject().CN = cn
-        if not request:
-            cert.set_serial_number(sn)
-            cert.gmtime_adj_notBefore(valid_from)  # Valid before present time
-            cert.gmtime_adj_notAfter(valid_to)  # 3 650 days
-            cert.set_issuer(cert.get_subject())
-        cert.set_pubkey(k)
-        cert.sign(k, hash_alg)
 
         try:
+            k = _rsa.generate_private_key(public_exponent=65537, key_size=key_length)
+
+            name_attributes = []
+            if "country_code" in cert_info and cert_info["country_code"]:
+                name_attributes.append(x509.NameAttribute(NameOID.COUNTRY_NAME, cert_info["country_code"]))
+            if "state" in cert_info and cert_info["state"]:
+                name_attributes.append(x509.NameAttribute(NameOID.STATE_OR_PROVINCE_NAME, cert_info["state"]))
+            if "city" in cert_info and cert_info["city"]:
+                name_attributes.append(x509.NameAttribute(NameOID.LOCALITY_NAME, cert_info["city"]))
+            if "organization" in cert_info and cert_info["organization"]:
+                name_attributes.append(x509.NameAttribute(NameOID.ORGANIZATION_NAME, cert_info["organization"]))
+            if "organization_unit" in cert_info and cert_info["organization_unit"]:
+                name_attributes.append(
+                    x509.NameAttribute(NameOID.ORGANIZATIONAL_UNIT_NAME, cert_info["organization_unit"])
+                )
+            if "cn" in cert_info and cert_info["cn"]:
+                name_attributes.append(x509.NameAttribute(NameOID.COMMON_NAME, cn))
+            subject = x509.Name(name_attributes)
+
+            hash_algorithm = _get_hash_algorithm(hash_alg)
+
             if request:
-                tmp_cert = crypto.dump_certificate_request(crypto.FILETYPE_PEM, cert)
+                csr = x509.CertificateSigningRequestBuilder().subject_name(subject).sign(k, hash_algorithm)
+                tmp_cert = csr.public_bytes(serialization.Encoding.PEM)
             else:
-                tmp_cert = crypto.dump_certificate(crypto.FILETYPE_PEM, cert)
-            tmp_key = None
+                now = datetime.now(timezone.utc)
+                not_before = now + timedelta(seconds=valid_from)
+                not_after = now + timedelta(seconds=valid_to)
+                builder = (
+                    x509.CertificateBuilder()
+                    .subject_name(subject)
+                    .issuer_name(subject)
+                    .public_key(k.public_key())
+                    .serial_number(_to_serial_number(sn))
+                    .not_valid_before(not_before)
+                    .not_valid_after(not_after)
+                )
+                cert = builder.sign(k, hash_algorithm)
+                tmp_cert = cert.public_bytes(serialization.Encoding.PEM)
+
             if cipher_passphrase is not None:
                 passphrase = cipher_passphrase["passphrase"]
-                if isinstance(cipher_passphrase["passphrase"], str):
+                if isinstance(passphrase, str):
                     passphrase = passphrase.encode("utf-8")
-                tmp_key = crypto.dump_privatekey(crypto.FILETYPE_PEM, k, cipher_passphrase["cipher"], passphrase)
+                encryption_algorithm = serialization.BestAvailableEncryption(passphrase)
             else:
-                tmp_key = crypto.dump_privatekey(crypto.FILETYPE_PEM, k)
+                encryption_algorithm = serialization.NoEncryption()
+
+            tmp_key = k.private_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PrivateFormat.TraditionalOpenSSL,
+                encryption_algorithm=encryption_algorithm,
+            )
+
             if write_to_file:
                 with open(c_f, "w") as fc:
                     fc.write(tmp_cert.decode("utf-8"))
@@ -207,7 +272,6 @@ class OpenSSLWrapper:
         sn=1,
         passphrase=None,
     ):
-
         """
         Will sign a certificate request with a give certificate.
         :param sign_cert_str:     This certificate will be used to sign with.
@@ -240,27 +304,36 @@ class OpenSSLWrapper:
         :return:                  String representation of the signed
                                   certificate.
         """
-        ca_cert = crypto.load_certificate(crypto.FILETYPE_PEM, sign_cert_str)
-        ca_key = None
-        if passphrase is not None:
-            ca_key = crypto.load_privatekey(crypto.FILETYPE_PEM, sign_key_str, passphrase)
-        else:
-            ca_key = crypto.load_privatekey(crypto.FILETYPE_PEM, sign_key_str)
-        req_cert = crypto.load_certificate_request(crypto.FILETYPE_PEM, request_cert_str)
+        sign_cert_bytes = sign_cert_str if isinstance(sign_cert_str, bytes) else sign_cert_str.encode("utf-8")
+        sign_key_bytes = sign_key_str if isinstance(sign_key_str, bytes) else sign_key_str.encode("utf-8")
+        request_cert_bytes = (
+            request_cert_str if isinstance(request_cert_str, bytes) else request_cert_str.encode("utf-8")
+        )
 
-        cert = crypto.X509()
-        cert.set_subject(req_cert.get_subject())
-        cert.set_serial_number(sn)
-        cert.gmtime_adj_notBefore(valid_from)
-        cert.gmtime_adj_notAfter(valid_to)
-        cert.set_issuer(ca_cert.get_subject())
-        cert.set_pubkey(req_cert.get_pubkey())
-        cert.sign(ca_key, hash_alg)
+        if passphrase is not None and isinstance(passphrase, str):
+            passphrase = passphrase.encode("utf-8")
 
-        cert_dump = crypto.dump_certificate(crypto.FILETYPE_PEM, cert)
-        if isinstance(cert_dump, str):
-            return cert_dump
-        return cert_dump.decode("utf-8")
+        ca_cert = x509.load_pem_x509_certificate(sign_cert_bytes)
+        ca_key = serialization.load_pem_private_key(sign_key_bytes, password=passphrase)
+        req_cert = x509.load_pem_x509_csr(request_cert_bytes)
+
+        now = datetime.now(timezone.utc)
+        not_before = now + timedelta(seconds=valid_from)
+        not_after = now + timedelta(seconds=valid_to)
+
+        builder = (
+            x509.CertificateBuilder()
+            .subject_name(req_cert.subject)
+            .issuer_name(ca_cert.subject)
+            .public_key(req_cert.public_key())
+            .serial_number(_to_serial_number(sn))
+            .not_valid_before(not_before)
+            .not_valid_after(not_after)
+        )
+
+        cert = builder.sign(ca_key, _get_hash_algorithm(hash_alg))
+        cert_dump = cert.public_bytes(serialization.Encoding.PEM).decode("utf-8")
+        return cert_dump
 
     def verify_chain(self, cert_chain_str_list, cert_str):
         """
@@ -277,14 +350,37 @@ class OpenSSLWrapper:
                 return False, message
             else:
                 cert_str = tmp_cert_str
-            return (True, "Signed certificate is valid and correctly signed by CA " "certificate.")
+            return (True, "Signed certificate is valid and correctly signed by CA certificate.")
 
     def certificate_not_valid_yet(self, cert):
-        starts_to_be_valid = dateutil.parser.parse(cert.get_notBefore())
+        if hasattr(cert, "not_valid_before_utc"):
+            starts_to_be_valid = cert.not_valid_before_utc
+        elif hasattr(cert, "not_valid_before"):
+            starts_to_be_valid = cert.not_valid_before.replace(tzinfo=timezone.utc)
+        elif hasattr(cert, "get_notBefore"):
+            starts_to_be_valid = dateutil.parser.parse(cert.get_notBefore())
+        else:
+            raise TypeError("Unknown certificate object")
+        if starts_to_be_valid.tzinfo is None:
+            starts_to_be_valid = starts_to_be_valid.replace(tzinfo=timezone.utc)
         now = datetime.now(timezone.utc)
         if starts_to_be_valid < now:
             return False
         return True
+
+    def _certificate_has_expired(self, cert):
+        if hasattr(cert, "not_valid_after_utc"):
+            expires = cert.not_valid_after_utc
+        elif hasattr(cert, "not_valid_after"):
+            expires = cert.not_valid_after.replace(tzinfo=timezone.utc)
+        elif hasattr(cert, "has_expired"):
+            return cert.has_expired() == 1
+        else:
+            raise TypeError("Unknown certificate object")
+        if expires.tzinfo is None:
+            expires = expires.replace(tzinfo=timezone.utc)
+        now = datetime.now(timezone.utc)
+        return now >= expires
 
     def verify(self, signing_cert_str, cert_str):
         """
@@ -306,31 +402,33 @@ class OpenSSLWrapper:
                                  Message = Why the validation failed.
         """
         try:
-            ca_cert = crypto.load_certificate(crypto.FILETYPE_PEM, signing_cert_str)
-            cert = crypto.load_certificate(crypto.FILETYPE_PEM, cert_str)
-
-            if self.certificate_not_valid_yet(ca_cert):
-                return False, "CA certificate is not valid yet."
-
-            if ca_cert.has_expired() == 1:
-                return False, "CA certificate is expired."
-
-            if cert.has_expired() == 1:
-                return False, "The signed certificate is expired."
-
-            if self.certificate_not_valid_yet(cert):
-                return False, "The signed certificate is not valid yet."
-
-            if ca_cert.get_subject().CN == cert.get_subject().CN:
-                return False, ("CN may not be equal for CA certificate and the " "signed certificate.")
-
             cert_str_bytes = cert_str if isinstance(cert_str, bytes) else cert_str.encode("ascii")
             signing_cert_bytes = (
                 signing_cert_str if isinstance(signing_cert_str, bytes) else signing_cert_str.encode("ascii")
             )
 
-            cert_crypto = saml2.cryptography.pki.load_pem_x509_certificate(cert_str_bytes)
             ca_cert_crypto = saml2.cryptography.pki.load_pem_x509_certificate(signing_cert_bytes)
+            cert_crypto = saml2.cryptography.pki.load_pem_x509_certificate(cert_str_bytes)
+
+            if self.certificate_not_valid_yet(ca_cert_crypto):
+                return False, "CA certificate is not valid yet."
+
+            if self._certificate_has_expired(ca_cert_crypto):
+                return False, "CA certificate is expired."
+
+            if self._certificate_has_expired(cert_crypto):
+                return False, "The signed certificate is expired."
+
+            if self.certificate_not_valid_yet(cert_crypto):
+                return False, "The signed certificate is not valid yet."
+
+            def _get_cn(c):
+                attrs = c.subject.get_attributes_for_oid(NameOID.COMMON_NAME)
+                return attrs[0].value if attrs else None
+
+            if _get_cn(ca_cert_crypto) == _get_cn(cert_crypto):
+                return False, ("CN may not be equal for CA certificate and the signed certificate.")
+
             ca_public_key = ca_cert_crypto.public_key()
 
             try:
