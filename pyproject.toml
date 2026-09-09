@@ -1,6 +1,6 @@
 [project]
 name = "pysaml2-fork"
-version = "7.5.5"
+version = "7.5.6"
 description = "Python implementation of SAML Version 2 Standard"
 license = "Apache-2.0"
 authors = [{name = "IdentityPython", email = "discuss@idpy.org"}]
@@ -20,13 +20,14 @@ classifiers = [
 ]
 requires-python = ">= 3.9.2"
 dependencies = [
-  "cryptography >=46.0.5",
+  "cryptography >=50.0.1",
   "defusedxml",
-  "pyopenssl >=25.3.0",
+  "pyopenssl >=26.4.0",
   "python-dateutil",
   "requests >=2.0.0,<3.0.0",  # ^2 means compatible with 2.x
   "xmlschema >=2.0.0,<3.0.0"
 ]
+
 
 [project.optional-dependencies]
 s2repoze = [
@@ -78,7 +79,7 @@ types-requests = "^2.28.11.12"
 optional = true
 
 [tool.poetry.group.test.dependencies]
-pyasn1 = "*"
+pyasn1 = ">=0.6.4"
 pymongo = ">=3.5, <5"
 pytest = ">=6.0"
 responses = "*"
