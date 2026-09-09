@@ -1,5 +1,15 @@
 # Changelog
 
+## v7.5.6 (2026-09-09)
+
+- deps: update dependencies `pyopenssl>=26.4.0` and `cryptography>=50.0.1`
+- fix: migrate `OpenSSLWrapper` in `saml2.cert` to `cryptography.x509` resolving `X509Req` removal in pyOpenSSL 26
+
+## v7.5.5 (2026-09-08)
+
+- Release as `pysaml2-fork` on PyPI
+- Includes fixes from `7.5.4-1` (CVE-2026-26007 mitigation and OpenSSL compatibility)
+
 ## 7.5.4-1 (2026-03-17)
 
 - Update python version to `>=3.9.2` to leverage newer language feature and maintain support for dependencies
